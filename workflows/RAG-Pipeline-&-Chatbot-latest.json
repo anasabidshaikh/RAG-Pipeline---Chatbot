@@ -1,0 +1,625 @@
+{
+  "name": "RAG-Pipeline-&-Chatbot-latest",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        960,
+        304
+      ],
+      "id": "ddfb8fef-de0f-426b-8d10-7e872ff281cf",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        1344,
+        -48
+      ],
+      "id": "46143ccc-26d1-4bad-b670-75998faf6c61",
+      "name": "When chat message received",
+      "webhookId": "32c385df-2c50-460b-ab43-dca6882528c7"
+    },
+    {
+      "parameters": {
+        "model": "qwen3-vl:235b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        1504,
+        112
+      ],
+      "id": "8a155d11-0071-4025-99d2-24cc25a13d39",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "2BuhJ3DTLovK81HW",
+          "name": "Ollama Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        1696,
+        336
+      ],
+      "id": "720d1bb7-aa68-46ee-8983-2b70c6be0115",
+      "name": "Embeddings Ollama1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "4aW5zIQ36aHqCIdf",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6d809ff9-c82d-42b3-b31c-3ffff5988b69",
+              "leftValue": "={{ $json.mimeType }}",
+              "rightValue": "=pdf|word|excel|spreadsheet|presentation|powerpoint|plain|csv|markdown|html|rfc822|outlook|google-apps",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        0
+      ],
+      "id": "184ccd9f-3e6a-4121-b0a8-5db42aaca014",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "authentication": "webhook",
+        "content": "=\"File ignored: {{ $json.name }} is not an accepted document format.\"",
+        "options": {},
+        "embeds": {
+          "values": []
+        },
+        "files": {
+          "values": []
+        }
+      },
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        384,
+        192
+      ],
+      "id": "87af58d0-f116-465d-8fff-96873a42af11",
+      "name": "Discord",
+      "webhookId": "43966147-3415-450b-9d54-a9b21413e569",
+      "credentials": {
+        "discordWebhookApi": {
+          "id": "bv5ECL0GmOdCNTZZ",
+          "name": "Discord Webhook account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "file_id",
+                "value": "={{ $json.fileId }}"
+              },
+              {
+                "name": "file_name",
+                "value": "={{ $json.fileName }}"
+              },
+              {
+                "name": "file_hash",
+                "value": "={{ $json.fileHash }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        176
+      ],
+      "id": "82339a56-442f-4457-93d6-279d56d7ac95",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nfor (const item of $input.all()) {\n  const binaryKey = Object.keys(item.binary)[0] || 'data';\n  const base64Data = item.binary[binaryKey].data;\n\n  // Calculate MD5 Checksum of the binary payload\n  item.json.fileHash = crypto.createHash('md5').update(base64Data, 'base64').digest('hex');\n  item.json.fileId = item.json.id;\n  item.json.fileName = item.json.name;\n}\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        544,
+        -16
+      ],
+      "id": "ea1ab883-89b1-42e1-9b90-e61dc3aa27ba",
+      "name": "File Hashing & Vector Store Deduplication"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://rag-pipeline-and-chatbot-k33wtau.svc.aped-4627-b74a.pinecone.io/vectors/delet",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "pineconeApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"deleteAll\": false,\n  \"namespace\": \"FAQ\",\n  \"filter\": {\n    \"file_id\": \"{{ $json.fileId }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        736,
+        -16
+      ],
+      "id": "33040f72-04d9-480e-8fbf-06fb797ae936",
+      "name": "Purge Old Embeddings",
+      "credentials": {
+        "pineconeApi": {
+          "id": "QNdc9QRLLH0kFIcx",
+          "name": "PineconeApi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.sessionId || $json.chatInput }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        1616,
+        224
+      ],
+      "id": "e58979f5-e527-4169-9314-c2b969cbad6b",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "content": "## PIPELINE 1: Automated Document Ingestion & Vector Indexing\n• Trigger: Polls target Google Drive folder every minute for new files.\n• Download: Converts Workspace files & fetches binary payload.\n• Processing: Hashes file, chunks text via Recursive Splitter.\n• Vector Store: Embeds chunks via Ollama and upserts into Pinecone 'FAQ' namespace.",
+        "height": 704,
+        "width": 1216
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        16,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "509e3631-f0d9-441a-90be-b33142ac2508",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## PIPELINE 2: RETRIEVAL AUGMENTED GENERATION (RAG) CHATBOT\n• Entrypoint: Receives incoming chat webhook payloads.\n• Intelligence: LangChain AI Agent powered by Ollama LLM.\n• Tooling: Uses Pinecone Vector Store as a dynamic retrieval tool ('Policy_and_FAQ').\n• Memory: Retains active conversation session context.",
+        "height": 704,
+        "width": 688,
+        "color": "#05103D"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1264,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "047a8e69-d1bc-4111-b026-0f075af2395e",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "1vVc_0EHWddYtPgiCVsYq0rlu_RbQcz9f",
+          "mode": "list",
+          "cachedResultName": "RAG-Pipeline-&-Chatbot",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1vVc_0EHWddYtPgiCVsYq0rlu_RbQcz9f"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        64,
+        0
+      ],
+      "id": "7e8872fe-5953-4d54-a9e9-2ccb6bbb0979",
+      "name": "GDrive - Watch Target Folder",
+      "retryOnFail": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "UCWzVugJ6H4sxay4",
+          "name": "Google Drive account"
+        }
+      },
+      "notes": "Monitors folder ID 1vVc_0EHWddYtPgiCVsYq0rlu_RbQcz9f for new document uploads."
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf",
+              "drawingsToFormat": "application/pdf",
+              "slidesToFormat": "application/pdf"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        384,
+        -16
+      ],
+      "id": "9949c188-f97a-4537-a55e-25a67105bf4c",
+      "name": "GDrive - Download Binary",
+      "retryOnFail": true,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "UCWzVugJ6H4sxay4",
+          "name": "Google Drive account"
+        }
+      },
+      "notes": "Downloads payload and auto-converts Google Workspace docs to standard formats."
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "rag-pipeline-and-chatbot",
+          "mode": "list",
+          "cachedResultName": "rag-pipeline-and-chatbot"
+        },
+        "options": {
+          "pineconeNamespace": "FAQ"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        -16
+      ],
+      "id": "7039dc83-a2a6-4306-af12-b269205f2693",
+      "name": "Pinecone - Upsert Vectors",
+      "credentials": {
+        "pineconeApi": {
+          "id": "QNdc9QRLLH0kFIcx",
+          "name": "PineconeApi account"
+        }
+      },
+      "notes": "Index: rag-pipeline-and-chatbot | Namespace: FAQ."
+    },
+    {
+      "parameters": {
+        "model": "nomic-embed-text:latest"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
+      "typeVersion": 1,
+      "position": [
+        848,
+        160
+      ],
+      "id": "dbecf3d7-2d29-493e-b1d8-324784ef97ad",
+      "name": "Ollama - Embeddings Generator",
+      "retryOnFail": true,
+      "credentials": {
+        "ollamaApi": {
+          "id": "2BuhJ3DTLovK81HW",
+          "name": "Ollama Cloud account"
+        }
+      },
+      "notes": "Model: nomic-embed-text:latest"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "# Role & Purpose\nYou are the official Technical Operations Assistant. You answer technical questions regarding company procedures and policies.\n\n# Execution Rules\n1. ALWAYS query the \"Policy_and_FAQ\" tool prior to generating a response.\n2. Rely strictly on retrieved internal documents. If no relevant documents are found, state: \"I do not have sufficient internal documentation to answer this request.\"\n3. Do not invent or assume policies."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1520,
+        -48
+      ],
+      "id": "45baaa73-cc10-4a27-a90d-fa7e7faa0583",
+      "name": "AI Agent - Technical Support",
+      "notes": "Handles user chat requests using internal FAQ retrieval tools"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Queries official company technical policies, standard operating procedures (SOPs), and internal FAQ documentation.",
+        "pineconeIndex": {
+          "__rl": true,
+          "value": "rag-pipeline-and-chatbot",
+          "mode": "list",
+          "cachedResultName": "rag-pipeline-and-chatbot"
+        },
+        "options": {
+          "pineconeNamespace": "FAQ"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStorePinecone",
+      "typeVersion": 1.3,
+      "position": [
+        1696,
+        128
+      ],
+      "id": "4f3565fc-bc71-4548-babb-1019afa5d8e1",
+      "name": "Pinecone - Retrieval Tool",
+      "credentials": {
+        "pineconeApi": {
+          "id": "QNdc9QRLLH0kFIcx",
+          "name": "PineconeApi account"
+        }
+      },
+      "notes": "Tool Name: Policy_and_FAQ | Mode: retrieve-as-tool."
+    },
+    {
+      "parameters": {
+        "content": "\n## WORKFLOW: Enterprise RAG Support Agent & Document Indexer\n## VERSION: 1.0.0\n## MAINTAINER: AI Automation Engineering Team\n\n\n**OVERVIEW:**\nThis workflow automates company knowledge base synchronization and powers an AI support chatbot. \n\n**ENV / DEPENDENCIES:**\n• Pinecone Index: rag-pipeline-and-chatbot \n• Embedding Engine: Ollama (nomic-embed-text:latest)\n• Language Model: Ollama (qwen3-vl:235b-instruct)\n• GDrive Target Folder: $vars.GDRIVE_TARGET_FOLDER_ID\n",
+        "height": 704,
+        "width": 464,
+        "color": 2
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -464,
+        -240
+      ],
+      "typeVersion": 1,
+      "id": "3f27be13-fca2-4ad0-8851-1f816f89684e",
+      "name": "Sticky Note2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Technical Support",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent - Technical Support",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Ollama1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone - Retrieval Tool",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "GDrive - Download Binary",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Pinecone - Upsert Vectors",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "File Hashing & Vector Store Deduplication": {
+      "main": [
+        [
+          {
+            "node": "Purge Old Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Purge Old Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Pinecone - Upsert Vectors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent - Technical Support",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GDrive - Watch Target Folder": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GDrive - Download Binary": {
+      "main": [
+        [
+          {
+            "node": "File Hashing & Vector Store Deduplication",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Embeddings Generator": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Pinecone - Upsert Vectors",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pinecone - Retrieval Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent - Technical Support",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "6b12c0c6-d47e-4461-a58a-29d131591694",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "a349b5cc0165672228af0427372044296e6e3af2a4ca878c4cbfb0990fc69b3a"
+  },
+  "nodeGroups": [],
+  "id": "ukjP43Q3Kl04Pkok",
+  "tags": [
+    {
+      "updatedAt": "2026-09-10T03:18:42.437Z",
+      "createdAt": "2026-09-10T03:18:42.437Z",
+      "id": "6NRZiMk4FsNRcvIY",
+      "name": "latest"
+    },
+    {
+      "updatedAt": "2026-05-17T12:55:10.984Z",
+      "createdAt": "2026-05-17T12:55:10.984Z",
+      "id": "G82qrvppaYgIEkB3",
+      "name": "Moderate"
+    },
+    {
+      "updatedAt": "2026-05-17T12:54:52.055Z",
+      "createdAt": "2026-05-17T12:54:52.055Z",
+      "id": "GmdTbeBFtgwR7Yff",
+      "name": "RAG-Agent"
+    },
+    {
+      "updatedAt": "2026-05-17T12:55:22.250Z",
+      "createdAt": "2026-05-17T12:55:22.250Z",
+      "id": "tbjr90A3nNpAOEir",
+      "name": "Vector-Database"
+    }
+  ]
+}
